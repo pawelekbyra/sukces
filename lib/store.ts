@@ -21,6 +21,7 @@ interface SuwerenState {
   addRunningKm: (km: number) => void;
   updatePIndex: () => void;
   setYearsOfAddiction: (type: 'nicotine' | 'thc' | 'noFap', years: number) => void;
+  setLastReset: (type: 'nicotine' | 'thc' | 'noFap', date: string) => void;
 }
 
 export const useSuwerenStore = create<SuwerenState>()(
@@ -61,6 +62,13 @@ export const useSuwerenStore = create<SuwerenState>()(
       setYearsOfAddiction: (type, years) => {
         set((state) => ({
           [type]: { ...state[type], yearsOfAddiction: years }
+        }));
+        get().updatePIndex();
+      },
+
+      setLastReset: (type, date) => {
+        set((state) => ({
+          [type]: { ...state[type], lastReset: date }
         }));
         get().updatePIndex();
       },
