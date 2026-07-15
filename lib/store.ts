@@ -1,112 +1,92 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { differenceInHours, differenceInDays } from 'date-fns';
 
-interface AddictionState {
-  lastReset: string; // ISO string
+export type AddictionType = 'nicotine' | 'thc' | 'nofap';
+
+export interface RelapseEvent {
+  id: string;
+  addiction: AddictionType;
+  timestamp: string; // ISO 8601 — when the relapse actually happened
+  loggedAt: string; // ISO 8601 — when the user recorded it (differs from timestamp for backdated entries)
+  note?: string; // optional trigger/context, used later for pattern detection
+}
+
+export interface AddictionTrack {
+  type: AddictionType;
+  name: string;
   yearsOfAddiction: number;
+  trackingStart: string; // ISO 8601 — first day this addiction was tracked
 }
 
 interface SuwerenState {
-  nicotine: AddictionState;
-  thc: AddictionState;
-  noFap: AddictionState;
+  tracks: Record<AddictionType, AddictionTrack> | null;
+  events: RelapseEvent[];
   runningKmThisWeek: number;
-  pIndex: number;
+  hydrated: boolean;
+  error: string | null;
 
-  // Actions
-  resetNicotine: () => void;
-  resetThc: () => void;
-  resetNoFap: () => void;
-  addRunningKm: (km: number) => void;
-  updatePIndex: () => void;
-  setYearsOfAddiction: (type: 'nicotine' | 'thc' | 'noFap', years: number) => void;
-  setLastReset: (type: 'nicotine' | 'thc' | 'noFap', date: string) => void;
+  hydrate: () => Promise<void>;
+  logRelapse: (type: AddictionType, timestamp?: string, note?: string) => Promise<void>;
+  setYearsOfAddiction: (type: AddictionType, years: number) => Promise<void>;
+  addRunningKm: (km: number) => Promise<void>;
 }
 
-export const useSuwerenStore = create<SuwerenState>()(
-  persist(
-    (set, get) => ({
-      nicotine: { lastReset: new Date().toISOString(), yearsOfAddiction: 18 },
-      thc: { lastReset: new Date().toISOString(), yearsOfAddiction: 0 },
-      noFap: { lastReset: new Date().toISOString(), yearsOfAddiction: 0 },
-      runningKmThisWeek: 0,
-      pIndex: 0,
+export const useSuwerenStore = create<SuwerenState>()((set, get) => ({
+  tracks: null,
+  events: [],
+  runningKmThisWeek: 0,
+  hydrated: false,
+  error: null,
 
-      resetNicotine: () => {
-        set((state) => ({
-          nicotine: { ...state.nicotine, lastReset: new Date().toISOString() }
-        }));
-        get().updatePIndex();
-      },
-      resetThc: () => {
-        set((state) => ({
-          thc: { ...state.thc, lastReset: new Date().toISOString() }
-        }));
-        get().updatePIndex();
-      },
-      resetNoFap: () => {
-        set((state) => ({
-          noFap: { ...state.noFap, lastReset: new Date().toISOString() }
-        }));
-        get().updatePIndex();
-      },
-
-      addRunningKm: (km) => {
-        set((state) => ({
-          runningKmThisWeek: state.runningKmThisWeek + km
-        }));
-        get().updatePIndex();
-      },
-
-      setYearsOfAddiction: (type, years) => {
-        set((state) => ({
-          [type]: { ...state[type], yearsOfAddiction: years }
-        }));
-        get().updatePIndex();
-      },
-
-      setLastReset: (type, date) => {
-        set((state) => ({
-          [type]: { ...state[type], lastReset: date }
-        }));
-        get().updatePIndex();
-      },
-
-      updatePIndex: () => {
-        const { nicotine, thc, noFap, runningKmThisWeek } = get();
-        const now = new Date();
-
-        // Scoring logic
-        // Base (Passive)
-        const nicotineHours = differenceInHours(now, new Date(nicotine.lastReset));
-        const thcHours = differenceInHours(now, new Date(thc.lastReset));
-        const noFapDays = differenceInDays(now, new Date(noFap.lastReset));
-
-        // Multipliers based on years of addiction (1 + years/18)
-        const nicotineMult = 1 + (nicotine.yearsOfAddiction / 18);
-        const thcMult = 1 + (thc.yearsOfAddiction / 18);
-        const noFapMult = 1 + (noFap.yearsOfAddiction / 18);
-
-        // Calculate points
-        // Nicotine: 0.1 pt per hour * mult
-        // THC: 0.2 pt per hour * mult
-        // No-Fap: 5 pts per day * mult
-        const nicotinePoints = nicotineHours * 0.1 * nicotineMult;
-        const thcPoints = thcHours * 0.2 * thcMult;
-        const noFapPoints = noFapDays * 5 * noFapMult;
-
-        // Catalyst (Active)
-        // 2 pts per km over 35km/week
-        const runningBonus = Math.max(0, runningKmThisWeek - 35) * 2;
-
-        const totalPIndex = Math.round(nicotinePoints + thcPoints + noFapPoints + runningBonus);
-
-        set({ pIndex: totalPIndex });
-      },
-    }),
-    {
-      name: 'suweren-storage',
+  hydrate: async () => {
+    try {
+      const res = await fetch('/api/state');
+      if (!res.ok) throw new Error('Nie udało się pobrać danych z serwera');
+      const data = await res.json();
+      set({
+        tracks: data.tracks,
+        events: data.events,
+        runningKmThisWeek: data.runningKmThisWeek,
+        hydrated: true,
+        error: null,
+      });
+    } catch (e) {
+      set({ hydrated: true, error: e instanceof Error ? e.message : 'Nieznany błąd' });
     }
-  )
-);
+  },
+
+  logRelapse: async (type, timestamp, note) => {
+    const res = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addiction: type, timestamp, note }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać relapsu');
+    const event: RelapseEvent = await res.json();
+    set((state) => ({ events: [...state.events, event] }));
+  },
+
+  setYearsOfAddiction: async (type, years) => {
+    const res = await fetch('/api/tracks', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, yearsOfAddiction: years }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać stażu');
+    set((state) => ({
+      tracks: state.tracks
+        ? { ...state.tracks, [type]: { ...state.tracks[type], yearsOfAddiction: years } }
+        : state.tracks,
+    }));
+  },
+
+  addRunningKm: async (km) => {
+    const res = await fetch('/api/running', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ km }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać kilometrów');
+    const data = await res.json();
+    set({ runningKmThisWeek: data.runningKmThisWeek });
+  },
+}));

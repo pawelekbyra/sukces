@@ -1,0 +1,117 @@
+"use client";
+
+import { useState } from "react";
+import { useSuwerenStore, type AddictionType } from "@/lib/store";
+import { getCurrentStreak, getLongestStreak } from "@/lib/streaks";
+import { cn } from "@/lib/utils";
+import { RefreshCcw, CalendarClock, Trophy } from "lucide-react";
+import { HistoryCalendar } from "./HistoryCalendar";
+import { PostRelapseModal } from "./PostRelapseModal";
+
+interface AddictionCardProps {
+  type: AddictionType;
+}
+
+export function AddictionCard({ type }: AddictionCardProps) {
+  const track = useSuwerenStore((s) => s.tracks![type]);
+  const events = useSuwerenStore((s) => s.events);
+  const logRelapse = useSuwerenStore((s) => s.logRelapse);
+
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showBackdate, setShowBackdate] = useState(false);
+  const [backdateValue, setBackdateValue] = useState("");
+  const [postRelapseOpen, setPostRelapseOpen] = useState(false);
+
+  const streak = getCurrentStreak(events, type, track.trackingStart);
+  const longest = getLongestStreak(events, type, track.trackingStart);
+  const isPersonalBest = streak.days > 0 && streak.days >= longest;
+
+  const handleBackdate = async () => {
+    if (!backdateValue) return;
+    await logRelapse(type, new Date(backdateValue).toISOString());
+    setShowBackdate(false);
+    setBackdateValue("");
+  };
+
+  return (
+    <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none flex flex-col gap-4">
+      <div className="flex justify-between items-center">
+        <span className="text-zinc-500 font-mono text-xs uppercase tracking-wider">{track.name}</span>
+        <span className="text-[10px] bg-zinc-800 px-2 py-0.5 text-zinc-400 font-mono">
+          STAŻ: {track.yearsOfAddiction} LAT
+        </span>
+      </div>
+
+      <div className="flex flex-col">
+        <span className="text-3xl font-bold">
+          {streak.days}
+          <span className="text-lg text-zinc-500"> dni </span>
+          {streak.hours}
+          <span className="text-lg text-zinc-500"> godz.</span>
+        </span>
+        <span className="text-zinc-600 font-mono text-[10px] uppercase">bez czystej dopaminy</span>
+      </div>
+
+      <div className={cn(
+        "flex items-center gap-2 text-xs font-mono",
+        isPersonalBest ? "text-emerald-400" : "text-zinc-500"
+      )}>
+        <Trophy className="w-3.5 h-3.5" />
+        {isPersonalBest ? "TO TWÓJ NAJLEPSZY WYNIK" : `Rekord: ${longest} dni`}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <button
+          onClick={() => setPostRelapseOpen(true)}
+          className="py-2 border border-zinc-700 hover:border-red-500/50 hover:bg-red-500/5 transition-all flex items-center justify-center gap-2 font-mono text-xs uppercase text-zinc-400 hover:text-red-400"
+        >
+          <RefreshCcw className="w-4 h-4" /> Relapse
+        </button>
+        <button
+          onClick={() => setShowBackdate((v) => !v)}
+          className="py-2 border border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all flex items-center justify-center gap-2 font-mono text-xs uppercase text-zinc-400 hover:text-emerald-400"
+        >
+          <CalendarClock className="w-4 h-4" /> Zgłoś wsteczny
+        </button>
+      </div>
+
+      {showBackdate && (
+        <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
+          <label className="text-[10px] text-zinc-500 font-mono uppercase">
+            Kiedy naprawdę doszło do relapsu?
+          </label>
+          <input
+            type="datetime-local"
+            value={backdateValue}
+            onChange={(e) => setBackdateValue(e.target.value)}
+            max={new Date().toISOString().slice(0, 16)}
+            className="bg-black border border-zinc-700 text-zinc-100 font-mono text-xs p-2 outline-none focus:border-emerald-500/50"
+          />
+          <button
+            onClick={handleBackdate}
+            className="py-1 border border-emerald-500/50 bg-emerald-500/10 text-emerald-500 font-mono text-[10px] uppercase"
+          >
+            Zapisz (nieodwracalne)
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowCalendar((v) => !v)}
+        className="text-[10px] font-mono uppercase text-zinc-600 hover:text-zinc-300 transition-colors self-start"
+      >
+        {showCalendar ? "Ukryj kalendarz ▲" : "Pokaż kalendarz ▼"}
+      </button>
+
+      {showCalendar && <HistoryCalendar type={type} />}
+
+      {postRelapseOpen && (
+        <PostRelapseModal
+          type={type}
+          endedStreakDays={streak.days}
+          onClose={() => setPostRelapseOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
