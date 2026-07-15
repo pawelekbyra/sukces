@@ -55,11 +55,13 @@ export function getDayStatus(
   referenceNow: Date = new Date()
 ): DayStatus {
   const dayStart = startOfDay(day);
+  const hasRelapse = eventsFor(events, type).some((e) => isSameDay(new Date(e.timestamp), day));
+  if (hasRelapse) return 'red';
+
   if (isAfter(dayStart, startOfDay(referenceNow))) return 'future';
   if (isBefore(dayStart, startOfDay(new Date(trackingStart)))) return 'untracked';
 
-  const hasRelapse = eventsFor(events, type).some((e) => isSameDay(new Date(e.timestamp), day));
-  return hasRelapse ? 'red' : 'green';
+  return 'green';
 }
 
 /** Recent events for this addiction, newest first — used for AI context and pattern detection. */

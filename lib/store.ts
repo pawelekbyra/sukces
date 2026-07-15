@@ -17,23 +17,30 @@ export interface AddictionTrack {
   trackingStart: string; // ISO 8601 — first day this addiction was tracked
 }
 
+export interface RunningEvent {
+  id: string;
+  timestamp: string; // ISO 8601 — when the run actually happened
+  km: number;
+  loggedAt: string; // ISO 8601 — when the user recorded it
+}
+
 interface SuwerenState {
   tracks: Record<AddictionType, AddictionTrack> | null;
   events: RelapseEvent[];
-  runningKmThisWeek: number;
+  runningEvents: RunningEvent[];
   hydrated: boolean;
   error: string | null;
 
   hydrate: () => Promise<void>;
   logRelapse: (type: AddictionType, timestamp?: string, note?: string) => Promise<void>;
   setYearsOfAddiction: (type: AddictionType, years: number) => Promise<void>;
-  addRunningKm: (km: number) => Promise<void>;
+  logRunningKm: (km: number, timestamp?: string) => Promise<void>;
 }
 
 export const useSuwerenStore = create<SuwerenState>()((set, get) => ({
   tracks: null,
   events: [],
-  runningKmThisWeek: 0,
+  runningEvents: [],
   hydrated: false,
   error: null,
 
@@ -45,7 +52,7 @@ export const useSuwerenStore = create<SuwerenState>()((set, get) => ({
       set({
         tracks: data.tracks,
         events: data.events,
-        runningKmThisWeek: data.runningKmThisWeek,
+        runningEvents: data.runningEvents,
         hydrated: true,
         error: null,
       });
@@ -79,14 +86,14 @@ export const useSuwerenStore = create<SuwerenState>()((set, get) => ({
     }));
   },
 
-  addRunningKm: async (km) => {
+  logRunningKm: async (km, timestamp) => {
     const res = await fetch('/api/running', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ km }),
+      body: JSON.stringify({ km, timestamp }),
     });
     if (!res.ok) throw new Error('Nie udało się zapisać kilometrów');
-    const data = await res.json();
-    set({ runningKmThisWeek: data.runningKmThisWeek });
+    const event: RunningEvent = await res.json();
+    set((state) => ({ runningEvents: [...state.runningEvents, event] }));
   },
 }));

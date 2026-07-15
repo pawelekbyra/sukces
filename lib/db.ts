@@ -44,6 +44,14 @@ export function ensureSchema(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL
         );
       `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS running_events (
+          id UUID PRIMARY KEY,
+          timestamp TIMESTAMPTZ NOT NULL,
+          km NUMERIC NOT NULL,
+          logged_at TIMESTAMPTZ NOT NULL
+        );
+      `;
 
       for (const track of DEFAULT_TRACKS) {
         await sql`
@@ -143,5 +151,35 @@ export async function insertChatMessage(message: ChatMessage): Promise<void> {
   await sql`
     INSERT INTO chat_messages (id, role, content, created_at)
     VALUES (${message.id}, ${message.role}, ${message.content}, ${message.createdAt});
+  `;
+}
+
+export interface RunningEvent {
+  id: string;
+  timestamp: string;
+  km: number;
+  loggedAt: string;
+}
+
+export async function getRunningEvents(): Promise<RunningEvent[]> {
+  await ensureSchema();
+  const { rows } = await sql`
+    SELECT id, timestamp, km, logged_at
+    FROM running_events
+    ORDER BY timestamp ASC;
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    timestamp: new Date(row.timestamp).toISOString(),
+    km: Number(row.km),
+    loggedAt: new Date(row.logged_at).toISOString(),
+  }));
+}
+
+export async function insertRunningEvent(event: RunningEvent): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO running_events (id, timestamp, km, logged_at)
+    VALUES (${event.id}, ${event.timestamp}, ${event.km}, ${event.loggedAt});
   `;
 }
