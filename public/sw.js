@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suweren-v1';
+const CACHE_NAME = 'suweren-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -31,21 +31,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Network-first: always try to fetch the latest deployed version.
+  // Cache is only a fallback for when the network is unavailable.
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return (
-        response ||
-        fetch(event.request).then((response) => {
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response;
-          }
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.status === 200 && response.type !== 'error') {
           const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-          return response;
-        })
-      );
-    })
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

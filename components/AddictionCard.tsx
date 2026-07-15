@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSuwerenStore, type AddictionType } from "@/lib/store";
 import { getCurrentStreak, getLongestStreak } from "@/lib/streaks";
-import { cn } from "@/lib/utils";
+import { cn, toLocalDateTimeInputValue } from "@/lib/utils";
 import { RefreshCcw, CalendarClock, Trophy } from "lucide-react";
 import { HistoryCalendar } from "./HistoryCalendar";
 import { PostRelapseModal } from "./PostRelapseModal";
@@ -90,7 +90,7 @@ export function AddictionCard({ type }: AddictionCardProps) {
             type="datetime-local"
             value={backdateValue}
             onChange={(e) => setBackdateValue(e.target.value)}
-            max={new Date().toISOString().slice(0, 16)}
+            max={toLocalDateTimeInputValue(now)}
             className="bg-black border border-zinc-700 text-zinc-100 font-mono text-xs p-2 outline-none focus:border-emerald-500/50"
           />
           <button

@@ -16,12 +16,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  if (timestamp && new Date(timestamp) > now) {
+    return NextResponse.json({ error: 'Data nie może być z przyszłości' }, { status: 400 });
+  }
+
   const event = {
     id: crypto.randomUUID(),
-    timestamp: timestamp ?? now,
+    timestamp: timestamp ?? now.toISOString(),
     km,
-    loggedAt: now,
+    loggedAt: now.toISOString(),
   };
 
   await insertRunningEvent(event);
