@@ -1,49 +1,84 @@
-Projekt: Elixir Wiedzmina & Polutek
-Repozytorium to obsluguje dwie rozne domeny o zupelnie odmiennym przeznaczeniu.
+# Suweren — System motywacyjnego śledzenia uzależnień z AI coach'em
 
-www.elixir-wiedzmina.pl
-Jest to jednostronicowa witryna sluzaca jako narzedzie dziennikarskiego sledztwa. Zawiera wylacznie zgromadzone dokumenty, dowody i analizy. Projekt ten ma forme statyczna, nastawiona na powage i przejrzystosc informacji.
+## O projekcie
 
-www.polutek.pl (GLOWNY FOKUS ROZWOJOWY)
-To agregator tresci i narzedzi wokol "vibe codingu", wspolpracy z AI, prompt engineeringu i narzedzi takich jak Cursor czy Bolt. Strona w calosci stworzona i rozwijana z pomoca AI. Jej glownym i nadrzednym celem jest generowanie jak najwiekszego ruchu organicznego (SEO). Inne poboczne, ukryte elementy systemu nie sa tu istotne.
+Suweren to aplikacja webowa do śledzenia postępu w walce z nałogami (papierosy, THC, masturbacja). Zamiast tylko pokazywać suchą liczbę godzin/dni od ostatniego relapsu, aplikacja:
 
-MANIFEST I INSTRUKCJE DLA PRZYSZLYCH MODELI AI (JAK ROZWIJAC POLUTEK.PL)
-Drogi module AI, czytasz ten dokument w swoim wirtualnym biurze, siedzac przed komputerkiem. Twoim zadaniem jest przejecie paleczki nad domena polutek.pl. Czasami mozesz nie dowierzac w to, co tu czytasz, bo kod ewoluowal, ale twoim celem jest uporzadkowanie go i uczynienie go jeszcze lepszym. Pamietaj, ze ludzie nieporzadni leca w kulki, a ty masz byc precyzyjny, skuteczny i dzialac w oparciu o idee i styl "najs".
+1. **Wizualizuje historię** — kalendarz z dniami zielonymi (czystymi) i czerwonymi (relapsy), żebyś widział/widziała swój łuk postępu nie tylko "teraz", ale nad całym okresem śledzenia
+2. **Motywuje contrastem** — widząc np. 10 dni czerwonych potem 3 zielone, naturalnie nie chcesz tego "splamić" (loss aversion — strata boli bardziej niż zysk cieszy)
+3. **Wspiera AI coach'em** — Claude Haiku analizuje Twoją kombinację nałogów (np. "dzień 2 bez nikotyny, ale już dzień 7 bez THC"), sprawdza je pod kątem Twojej osobistej historii (wzorce, kiedy zrywacie się najczęściej) i daje spersonalizowany, motywacyjny komunikat oparty na **naukowo gruntowanej bazie wiedzy** — nie mgłę.
 
-Twoim glownym KPI jest RUCH NA STRONIE. Aby go osiagnac, polutek.pl musi byc zajebisty, autentyczny i uzyteczny. Oto jak masz to zrobic:
+## Jak to działa
 
-1. Budowanie autentycznosci (Vibe i Styl "Najs")
-Strona tworzona przez AI nie moze brzmiec jak encyklopedia.
+### Licznik i kalendarz
+- Każdy nałóg ma licznik "X dni Y godzin" od ostatniego resetu
+- Kalendarz pokazuje pełną historię dni zielonych i czerwonych
+- Widać również najdłuższy streak ("miałem/am już 14 dni, teraz jestem na 3")
 
-Pisz w sposob lekki, z przymruzeniem oka, tak jakby to pisal prawdziwy czlowiek zajarany nowymi technologiami.
+### Reset
+- **Klik "Relapse"** → dodaje dzisiaj do czerwonych
+- **Reset wsteczny** → wybrać dzień w przeszłości, gdy faktycznie się zerwali/ś, ale zapomniałeś/ś zgłosić na czas (bez limitu czasowego)
+- Licznik się przelicza, kalendarz się zmienia
 
-Wprowadzaj element "human touch". Opowiadaj o bledach, jakie AI popelnia podczas vibe codingu, dziel sie frustracjami i sukcesami. Autentycznosc przyciaga ludzi i buduje zaufanie.
+### AI Coach
+- Przycisk "Co się teraz dzieje w moim ciele?"
+- Aplikacja wysyła snapshot: czasy wszystkich nałogów, lata uzależnienia, ostatnie relapsy
+- Claude Haiku czyta statyczną bazę wiedzy (`docs/knowledge-base/`) i syntetyzuje:
+  - "Jesteś w szczycie głodu nikotynowego (dzień 2–3), ale to właśnie okno, gdzie mózg jest najbardziej buntowniczy — to przejdzie"
+  - "Patrząc na Twoją historię: zawsze zrywacie się w weekendy, o 22:00 — to nie słabość, to sytuacja, możemy ją zaplanować"
+  - "THC ma długi okres półtrwania, teraz możliwe wydziwne sny — to normalnie, to Twój REM rebound"
 
-Utrzymuj klimat "najs" - ma byc czytelnie, nowoczesnie i bez zbednego nadecia.
+Baza wiedzy jest statyczna (szybko, bez latencji internetu), już zweryfikowana i cytowana (nie ma zmyślania przez AI).
 
-2. Rozwoj narzedzi (Uzytecznosc)
-Sam tekst to za malo, zeby utrzymac uzytkownika. Obecnie mamy juz w kodzie elementy takie jak VibeCalculator czy SystemPromptGenerator.
+## Czym różni się od istniejących "sober trackerów"
 
-Wymyslaj i programuj nowe, interaktywne mini-narzedzia dzialajace bezposrednio w przegladarce (React/Next.js).
+| Cecha | Konkurencja | Suweren |
+|-------|-------------|---------|
+| Widzenie historii | Zwykle tylko licznik "teraz" | Pełny kalendarz — widać wzorce nad miesiącami |
+| Motywacja | Mówią "powinieneś być dumny" | Pokazują "patrz, ty już wiesz jak być 14 dni czysty" |
+| AI | Chat ogólny / brak | AI coach zna Twoją historię i bazę naukową |
+| Reset wsteczny | Brak | Możliwy bez limitu — uczciwa korekcja |
+| Nałogi | Zwykle 1–2 (palenie, alkohol) | Dowolne 3+ (papierosy, THC, masturbacja, hazard, itp.) |
 
-Narzedzia te musza rozwiazywac realne problemy uzytkownikow szukajacych wiedzy o AI i promptowaniu.
+## Baza wiedzy
 
-Spraw, by uzytkownik chcial dodac polutek.pl do zakladek wlasnie ze wzgledu na te uzyteczne widgety.
+Aplikacja korzysta ze statycznej bazy napisanej przez autorów:
 
-3. Agresywne, ale madre SEO
-Analizuj i dodawaj nowe podstrony (szczegolnie w sekcji app/vibe-public/) odpowiadajace na swieze trendy (nowe modele, nowe narzedzia jak Lovable, Devin itp.).
+- **`docs/knowledge-base/thc.md`** — Odstawienie THC: mechanizm ECS, down-regulacja receptorów CB1, REM rebound, oś czasu (0–24h, 1–3 dni, tydzień, miesiące). Źródła: Budney 2004, Hirvonen 2012 (PET imaging), DSM-5.
+- **`docs/knowledge-base/nicotine.md`** — Odstawienie nikotyny: up-regulacja nAChR, krótkie półtrwanie (2h), szczyt objawów dzień 2–3, ale "32× wyższa szansa na długoterm. abstynencję jeśli przebrniesz pierwsze 7 dni". Źródła: Hughes 2007, Ferguson 2009, Cochrane.
+- **`docs/knowledge-base/nofap.md`** — Perspektywa społeczności NoFap — jaka jest ich filozofia i co zgłaszają użytkownicy + uczciwe rozgraniczenie: to nie jest potwierdzony "porn addiction" (DSM-5 go nie ma), ale ICD-11 uznaje CSBD jako zaburzenie kontroli impulsów. Pokazujemy oba widoki.
+- **`docs/knowledge-base/exercise.md`** — Bieganie jako "waluta naprawcza": endokannabinoidowy "runner's high" (nie endorfiny), BDNF, kortyzol, wpływ na somatycze głodu i sen. Mocne dowody dla nikotyny, słabsze dla THC.
 
-Tworz porownania (np. model X vs model Y, edytor A vs edytor B). To zapytania, ktore maja wysoki ruch.
+Wszystkie źródła są realne (nie zmyślone przez AI). Baza ma być **żywa** — w przyszłości można ją aktualizować.
 
-Zadbaj o perfekcyjne linkowanie wewnetrzne. Kazdy artykul powinien zachecac do sprawdzenia kalkulatorow lub innych powiazanych tekstow.
+## Jak uruchomić
 
-Tworz tresci z dlugiego ogona (long-tail keywords) o rozwiazywaniu bardzo specyficznych problemow w vibe codingu.
+```bash
+npm install
+npm run dev
+```
 
-4. Techniczne wskazowki do kodu
-Skupiaj sie na katalogach zwiazanych z widokiem publicznym (app/vibe-public/ oraz odpowiednie komponenty).
+Otwórz `http://localhost:3000`.
 
-Rozbudowujac kod, dbaj o semantyke HTML, szybkie ladowanie (Core Web Vitals) oraz optymalizacje pod urzadzenia mobilne. Silniki wyszukiwarek musza kochac te strone od strony technicznej.
+Dane są przechowywane w `localStorage` — przy pierwszym odwiedzeniu aplikacja zainicjalizuje domyślne nałogi, możesz je zmienić.
 
-Sam smialo korzystaj z pomocy innych narzedzi AI i wlasnych mechanizmow analitycznych, aby optymalizowac swoja prace.
+## Struktura kodu
 
-Elementy ukryte i panele administracyjne traktuj jako drugorzedne. Skup sie na tym, co widzi Google i uzytkownik koncowy.
+```
+├── app/page.tsx              # Dashboard
+├── app/api/ai-insight/route.ts # Claude Haiku endpoint
+├── lib/store.ts              # Zustand store (event log model)
+├── components/               # UI components (Dashboard, Calendar, AICoach)
+├── docs/knowledge-base/      # Statyczna baza wiedzy dla AI
+└── docs/ARCHITECTURE.md      # Szczegóły techniczne
+```
+
+## Disclaimer
+
+To narzędzie motywacyjne, nie porada medyczna. Jeśli masz poważne problemy ze zdrowiem psychicznym lub fizycznym związane z używkami, skonsultuj się z lekarzem.
+
+---
+
+**Wersja**: 2.0 (restart od nowa)  
+**Stack**: Next.js + TypeScript + Zustand + Tailwind + Claude Haiku  
+**Status**: W budowie (MVP phase)
