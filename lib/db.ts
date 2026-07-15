@@ -37,14 +37,12 @@ export function ensureSchema(): Promise<void> {
         );
       `;
 
-      const { rows } = await sql`SELECT type FROM tracks;`;
-      if (rows.length === 0) {
-        for (const track of DEFAULT_TRACKS) {
-          await sql`
-            INSERT INTO tracks (type, name, years_of_addiction, tracking_start)
-            VALUES (${track.type}, ${track.name}, ${track.yearsOfAddiction}, ${track.trackingStart});
-          `;
-        }
+      for (const track of DEFAULT_TRACKS) {
+        await sql`
+          INSERT INTO tracks (type, name, years_of_addiction, tracking_start)
+          VALUES (${track.type}, ${track.name}, ${track.yearsOfAddiction}, ${track.trackingStart})
+          ON CONFLICT (type) DO NOTHING;
+        `;
       }
     })();
   }
