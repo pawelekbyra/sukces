@@ -13,56 +13,59 @@ let schemaReady: Promise<void> | null = null;
 export function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
-      await sql`
-        CREATE TABLE IF NOT EXISTS tracks (
-          type TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          years_of_addiction INTEGER NOT NULL DEFAULT 0,
-          tracking_start TIMESTAMPTZ NOT NULL
-        );
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS relapse_events (
-          id UUID PRIMARY KEY,
-          addiction TEXT NOT NULL REFERENCES tracks(type),
-          timestamp TIMESTAMPTZ NOT NULL,
-          logged_at TIMESTAMPTZ NOT NULL,
-          note TEXT
-        );
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS app_settings (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        );
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS chat_messages (
-          id UUID PRIMARY KEY,
-          role TEXT NOT NULL,
-          content TEXT NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL
-        );
-      `;
-      await sql`
-        CREATE TABLE IF NOT EXISTS running_events (
-          id UUID PRIMARY KEY,
-          timestamp TIMESTAMPTZ NOT NULL,
-          km NUMERIC NOT NULL,
-          logged_at TIMESTAMPTZ NOT NULL
-        );
-      `;
-
-      for (const track of DEFAULT_TRACKS) {
-        await sql`
-          INSERT INTO tracks (type, name, years_of_addiction, tracking_start)
-          VALUES (${track.type}, ${track.name}, ${track.yearsOfAddiction}, ${track.trackingStart})
-          ON CONFLICT (type) DO NOTHING;
-        `;
+      try {
+        await runSchemaSetup();
+      } catch (e) {
+        schemaReady = null;
+        throw e;
       }
     })();
   }
   return schemaReady;
+}
+
+async function runSchemaSetup(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS tracks (
+      type TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      years_of_addiction INTEGER NOT NULL DEFAULT 0,
+      tracking_start TIMESTAMPTZ NOT NULL
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS relapse_events (
+      id UUID PRIMARY KEY,
+      addiction TEXT NOT NULL REFERENCES tracks(type),
+      timestamp TIMESTAMPTZ NOT NULL,
+      logged_at TIMESTAMPTZ NOT NULL,
+      note TEXT
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id UUID PRIMARY KEY,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS running_events (
+      id UUID PRIMARY KEY,
+      timestamp TIMESTAMPTZ NOT NULL,
+      km NUMERIC NOT NULL,
+      logged_at TIMESTAMPTZ NOT NULL
+    );
+  `;
+
+  for (const track of DEFAULT_TRACKS) {
+    await sql`
+      INSERT INTO tracks (type, name, years_of_addiction, tracking_start)
+      VALUES (${track.type}, ${track.name}, ${track.yearsOfAddiction}, ${track.trackingStart})
+      ON CONFLICT (type) DO NOTHING;
+    `;
+  }
 }
 
 export async function getTracks(): Promise<Record<AddictionType, AddictionTrack>> {
@@ -106,20 +109,6 @@ export async function insertEvent(event: RelapseEvent): Promise<void> {
   await sql`
     INSERT INTO relapse_events (id, addiction, timestamp, logged_at, note)
     VALUES (${event.id}, ${event.addiction}, ${event.timestamp}, ${event.loggedAt}, ${event.note ?? null});
-  `;
-}
-
-export async function getSetting(key: string): Promise<string | null> {
-  await ensureSchema();
-  const { rows } = await sql`SELECT value FROM app_settings WHERE key = ${key};`;
-  return rows.length > 0 ? rows[0].value : null;
-}
-
-export async function setSetting(key: string, value: string): Promise<void> {
-  await ensureSchema();
-  await sql`
-    INSERT INTO app_settings (key, value) VALUES (${key}, ${value})
-    ON CONFLICT (key) DO UPDATE SET value = ${value};
   `;
 }
 

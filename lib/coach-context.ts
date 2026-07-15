@@ -4,15 +4,20 @@ import { getTracks, getEvents } from './db';
 import { getCurrentStreak, getLongestStreak, getRecentEvents } from './streaks';
 import type { AddictionType } from './store';
 
+let cachedKnowledgeBase: string | null = null;
+
 function loadKnowledgeBase(): string {
+  if (cachedKnowledgeBase) return cachedKnowledgeBase;
+
   const dir = path.join(process.cwd(), 'docs', 'knowledge-base');
   const files = ['nicotine.md', 'thc.md', 'nofap.md', 'exercise.md'];
-  return files
+  cachedKnowledgeBase = files
     .map((file) => {
       const content = fs.readFileSync(path.join(dir, file), 'utf-8');
       return `--- ${file} ---\n${content}`;
     })
     .join('\n\n');
+  return cachedKnowledgeBase;
 }
 
 export async function buildCoachSystemPrompt(): Promise<string> {

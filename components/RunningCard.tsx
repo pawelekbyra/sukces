@@ -1,19 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSuwerenStore } from "@/lib/store";
 import { Trophy, Plus } from "lucide-react";
 import { differenceInDays } from "date-fns";
+import { toLocalDateTimeInputValue } from "@/lib/utils";
 
 export function RunningCard() {
   const runningEvents = useSuwerenStore((s) => s.runningEvents);
   const logRunningKm = useSuwerenStore((s) => s.logRunningKm);
 
   const [showForm, setShowForm] = useState(false);
-  const [dateValue, setDateValue] = useState(() => new Date().toISOString().slice(0, 16));
+  const [dateValue, setDateValue] = useState(() => toLocalDateTimeInputValue(new Date()));
   const [kmValue, setKmValue] = useState("");
+  const [now, setNow] = useState(() => new Date());
 
-  const now = new Date();
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const kmThisWeek = runningEvents
     .filter((e) => differenceInDays(now, new Date(e.timestamp)) < 7)
     .reduce((sum, e) => sum + e.km, 0);
@@ -55,7 +61,7 @@ export function RunningCard() {
             type="datetime-local"
             value={dateValue}
             onChange={(e) => setDateValue(e.target.value)}
-            max={new Date().toISOString().slice(0, 16)}
+            max={toLocalDateTimeInputValue(now)}
             className="bg-black border border-zinc-700 text-zinc-100 font-mono text-xs p-2 outline-none focus:border-emerald-500/50"
           />
           <input

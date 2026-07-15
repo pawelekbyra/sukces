@@ -14,12 +14,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid addiction type' }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  if (timestamp && new Date(timestamp) > now) {
+    return NextResponse.json({ error: 'Data nie może być z przyszłości' }, { status: 400 });
+  }
+
   const event: RelapseEvent = {
     id: crypto.randomUUID(),
     addiction,
-    timestamp: timestamp ?? now,
-    loggedAt: now,
+    timestamp: timestamp ?? now.toISOString(),
+    loggedAt: now.toISOString(),
     note,
   };
 
