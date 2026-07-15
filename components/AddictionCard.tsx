@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSuwerenStore, type AddictionType } from "@/lib/store";
 import { getCurrentStreak, getLongestStreak } from "@/lib/streaks";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,15 @@ export function AddictionCard({ type }: AddictionCardProps) {
   const [showBackdate, setShowBackdate] = useState(false);
   const [backdateValue, setBackdateValue] = useState("");
   const [postRelapseOpen, setPostRelapseOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
-  const streak = getCurrentStreak(events, type, track.trackingStart);
-  const longest = getLongestStreak(events, type, track.trackingStart);
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const streak = getCurrentStreak(events, type, track.trackingStart, now);
+  const longest = getLongestStreak(events, type, track.trackingStart, now);
   const isPersonalBest = streak.days > 0 && streak.days >= longest;
 
   const handleBackdate = async () => {
