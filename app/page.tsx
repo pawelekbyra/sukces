@@ -5,6 +5,7 @@ import { useSuwerenStore } from "@/lib/store";
 import { AddictionCard } from "@/components/AddictionCard";
 import { RunningCard } from "@/components/RunningCard";
 import { AICoach } from "@/components/AICoach";
+import { Chat } from "@/components/Chat";
 import { InstallPrompt } from "@/components/InstallPrompt";
 
 export default function Home() {
@@ -45,6 +46,7 @@ export default function Home() {
             </div>
 
             <AICoach />
+            <Chat />
           </>
         )}
 
