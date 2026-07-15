@@ -36,6 +36,14 @@ export function ensureSchema(): Promise<void> {
           value TEXT NOT NULL
         );
       `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+          id UUID PRIMARY KEY,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL
+        );
+      `;
 
       for (const track of DEFAULT_TRACKS) {
         await sql`
@@ -104,5 +112,36 @@ export async function setSetting(key: string, value: string): Promise<void> {
   await sql`
     INSERT INTO app_settings (key, value) VALUES (${key}, ${value})
     ON CONFLICT (key) DO UPDATE SET value = ${value};
+  `;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export async function getChatMessages(limit = 50): Promise<ChatMessage[]> {
+  await ensureSchema();
+  const { rows } = await sql`
+    SELECT id, role, content, created_at
+    FROM chat_messages
+    ORDER BY created_at ASC
+    LIMIT ${limit};
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    role: row.role as 'user' | 'assistant',
+    content: row.content,
+    createdAt: new Date(row.created_at).toISOString(),
+  }));
+}
+
+export async function insertChatMessage(message: ChatMessage): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO chat_messages (id, role, content, created_at)
+    VALUES (${message.id}, ${message.role}, ${message.content}, ${message.createdAt});
   `;
 }
