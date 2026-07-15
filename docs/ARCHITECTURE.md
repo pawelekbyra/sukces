@@ -1,128 +1,146 @@
 # Architektura aplikacji Suweren v2 — System śledzenia uzależnień z AI coach'em
 
 ## Cel
-Aplikacja mobilna/webowa do śledzenia postępu w walce z nałogami (papierosy, THC, masturbacja) poprzez:
-1. **Wizualny dziennik** — kalendarz dni zielonych (czystych) i czerwonych (relapse)
+Aplikacja webowa do śledzenia postępu w walce z nałogami (papierosy, THC, masturbacja) poprzez:
+1. **Wizualny dziennik** — kalendarz dni zielonych (czystych) i czerwonych (relapse), pełna historia
 2. **Licznik precyzyjny** — dni + godziny od ostatniego resetu
-3. **Reset wsteczny** — korekta przywłaszczonego dnia bez limitu czasowego
-4. **AI coach** — analiza wzorców z historii + motywacyjny komunikat generowany przez Claude Haiku, oparty na statycznej bazie wiedzy
-5. **Streaki** — widoczność aktualnego i najlepszego zapamiętanego streaka dla psychicznej motywacji
+3. **Reset wsteczny** — korekta przeoczonego dnia bez limitu czasowego, ale bez możliwości usunięcia/edycji już zapisanych zdarzeń
+4. **Ekran po relapsie** — współczujący reframe zamiast karania, z opcjonalną notatką o triggerze (surowiec pod przyszłe wykrywanie wzorców)
+5. **AI coach** — analiza kombinacji wszystkich nałogów naraz + motywacyjny komunikat generowany przez Claude Haiku, oparty na statycznej bazie wiedzy
+6. **Streaki** — widoczność aktualnego i najlepszego zapamiętanego streaka dla psychicznej motywacji (loss aversion)
 
-## Model danych
+## Persistencja: Vercel Postgres (Neon), bez logowania
 
-### Struktura główna (Zustand store + localStorage)
+Dane żyją w prawdziwej bazie danych (nie w `localStorage`) — jeden wspólny zestaw danych, bez ekranu logowania/kont. Baza: **Vercel Postgres** (Neon pod spodem), połączona przez `@vercel/postgres`.
+
+### Schemat SQL (tworzony leniwie przy pierwszym zapytaniu, patrz `lib/db.ts`)
+
+```sql
+CREATE TABLE tracks (
+  type TEXT PRIMARY KEY,               -- 'nicotine' | 'thc' | 'nofap'
+  name TEXT NOT NULL,
+  years_of_addiction INTEGER NOT NULL DEFAULT 0,
+  tracking_start TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE relapse_events (
+  id UUID PRIMARY KEY,
+  addiction TEXT NOT NULL REFERENCES tracks(type),
+  timestamp TIMESTAMPTZ NOT NULL,      -- kiedy relaps naprawdę się wydarzył
+  logged_at TIMESTAMPTZ NOT NULL,      -- kiedy user go zgłosił (różni się przy reset wstecznym)
+  note TEXT                            -- opcjonalny trigger/kontekst
+);
+
+CREATE TABLE app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+```
+
+**`relapse_events` jest append-only** — aplikacja nigdy nie generuje UPDATE/DELETE na tej tabeli. Jedyna operacja to INSERT (na żywo albo z datą wsteczną).
+
+### Model TypeScript (`lib/store.ts`, `lib/streaks.ts`)
 
 ```typescript
-interface RelapsEvent {
-  timestamp: string; // ISO 8601 — dokładna data/godzina relapsu
-  addiction: 'nicotine' | 'thc' | 'nofap'; // typ nałogu
-  notes?: string; // opcjonalne — kontekst (gdzie, dlaczego, trigger)
+type AddictionType = 'nicotine' | 'thc' | 'nofap';
+
+interface RelapseEvent {
+  id: string;
+  addiction: AddictionType;
+  timestamp: string;   // ISO — kiedy relaps się wydarzył
+  loggedAt: string;    // ISO — kiedy zgłoszony
+  note?: string;
 }
 
 interface AddictionTrack {
-  name: string; // "Papierosy", "Trawa", "Walenie"
-  type: 'nicotine' | 'thc' | 'nofap';
-  yearsOfAddiction: number; // dla kontekstu AI ("walczysz z tym 18 lat")
-  enabled: boolean; // czy śledzić
-  historyStart: string; // ISO — od kiedy zacząliśmy śledzenie (dla kontekstu historii)
-}
-
-interface SuwerenState {
-  // Śledzenie nałogów
-  tracks: AddictionTrack[]; // lista nałogów, które aktualnie śledzisz
-  events: RelapsEvent[]; // append-only log wszystkich relapsów
-  
-  // Statystyka dla każdego nałogu (kalkulowana)
-  currentStreaks: { [key: string]: { days: number; hours: number } }; // dni/godziny od ostatniego relapsu
-  longestStreaks: { [key: string]: { days: number } }; // najlepszy streak w historii
-  
-  // Aktywność fizyczna (wsparcie)
-  runningKmThisWeek: number;
-  
-  // Akcje
-  addEvent: (event: RelapsEvent) => void;
-  removeTrack: (type: string) => void;
-  addTrack: (track: AddictionTrack) => void;
-  setYearsOfAddiction: (type: string, years: number) => void;
-  addRunningKm: (km: number) => void;
-  getAIContext: () => object; // dane dla AI coach'a
+  type: AddictionType;
+  name: string;
+  yearsOfAddiction: number;
+  trackingStart: string; // ISO — od kiedy śledzimy ten nałóg
 }
 ```
 
-### Logika kalendarza
+Streaki, status dni kalendarza i wykrywanie rekordu liczone są **czystymi funkcjami** w `lib/streaks.ts` (`getCurrentStreak`, `getLongestStreak`, `getDayStatus`, `getRecentEvents`) — nie trzymane w bazie jako osobne pola, tylko wyliczane na żądanie z `events`.
 
-Dla każdego dnia w historii: istnieje event relapse = czerwony dzień, brak event = zielony dzień.
+## Przepływ danych
 
-**Brak edycji już zaraportowanych dni** — raz dodany event jest append-only (nie da się go usunąć ani przesunąć), ale można dodać nowy event wstecznie bez limitu czasowego.
+1. `app/page.tsx` woła `useSuwerenStore.hydrate()` przy montowaniu → `GET /api/state` → zwraca `{ tracks, events, runningKmThisWeek }` z bazy.
+2. Każda mutacja (relaps, reset wsteczny, zmiana stażu, dodanie km) idzie przez dedykowany endpoint (`POST /api/events`, `PATCH /api/tracks`, `POST /api/running`) i dopiero po sukcesie aktualizuje lokalny stan Zustand — źródłem prawdy jest zawsze baza, Zustand to tylko cache w pamięci karty.
+3. `AI Coach` (`POST /api/ai-insight`) **nie ufa danym z klienta** — sam odczytuje aktualny stan z bazy po stronie serwera, liczy streaki i buduje snapshot, więc nie da się go oszukać wysyłając spreparowany request.
 
 ## Funkcjonalności
 
 ### 1. Licznik i kalendarz
-- Licznik każdego nałogu: "X dni Y godzin" — liczony od najnowszego event w loggu
-- Kalendarz: dni zielone/czerwone na podstawie logu zdarzeń, pełna historia (nie tylko bieżący miesiąc)
-- Streak aktualny + najlepszy streak kiedykolwiek
+- Licznik: "X dni Y godzin" liczony od najnowszego zdarzenia w logu (`getCurrentStreak`)
+- Kalendarz (`HistoryCalendar.tsx`): miesiąc po miesiącu, nawigacja wstecz/w przód, dzień czerwony jeśli ma zdarzenie tego dnia, zielony jeśli nie, wyszarzony jeśli przed początkiem śledzenia lub w przyszłości
+- Widoczny aktualny streak + najlepszy streak w historii (`getLongestStreak`), z wyróżnieniem gdy user właśnie bije rekord
 
 ### 2. Reset (triggering event)
-- **Reset teraz** — przycisk "Relapse" dodaje event z bieżącą datą/godziną
-- **Reset wsteczny** — user wybiera dzień w przeszłości, gdy faktycznie się zerwał (ale zapomniał zgłosić na czas) — dodaje event z tamtą datą
-- Licznik automatycznie się przelicza, kalendarz się zmienia
+- **Relapse teraz** — otwiera `PostRelapseModal`: krok 1 (potwierdzenie + opcjonalna notatka o triggerze) → krok 2 (współczujący reframe, pokazuje zamknięty streak, przypomina że rekord zostaje zapisany)
+- **Zgłoś wsteczny** — inline date picker w karcie, bez limitu czasowego, dodaje zdarzenie z wybraną datą
 
-### 3. AI Coach (on-demand)
-- Przycisk / endpoint "Czemu się dzieje w moim ciele/mózgu?"
-- Wysyła snapshot stanu do Claude Haiku (Next.js API route, `/api/ai-insight`)
-- Haiku dostaje:
-  - Dni/godziny od ostatniego relapsu dla każdego nałogu
-  - Lata uzależnienia dla każdego
-  - Ostatnie 10 eventów (kontekst wzorców)
-  - System prompt z treścią z `/docs/knowledge-base/*.md` (THC, nikotyna, NoFap, bieganie)
-- Haiku syntetyzuje to w jedną narrację, mówiącą "Ty jesteś na etapie X THC-owo, ale Y nikotynowo, a Z to sygnał, że..." — łączące dane
-- Odpowiedź pojawia się w UI (streaming, jeśli chcemy)
+### 3. AI Coach (on-demand, nie automatyczny)
+- Przycisk "Co się teraz dzieje?" w `AICoach.tsx`
+- Serwer (`/api/ai-insight`) czyta z bazy stan wszystkich nałogów, liczy streaki, bierze 5 ostatnich zdarzeń per nałóg (kontekst wzorców — pora dnia, dzień tygodnia, notatki o triggerach)
+- System prompt zawiera pełną treść `docs/knowledge-base/*.md` jako jedyne dozwolone źródło faktów — model ma zakaz wymyślania danych spoza tego kontekstu
+- Haiku syntetyzuje to w jedną narrację (nie osobne akapity per nałóg), z jawnym rozróżnieniem tonu dla NoFap (motywacyjny styl społeczności, ale bez podszywania się pod ugruntowaną naukę)
 
 ## Struktura katalogów
 
 ```
 /home/user/sukces
 ├── app/
-│   ├── layout.tsx           # Root layout
-│   ├── page.tsx             # Główna strona (dashboard)
+│   ├── layout.tsx
+│   ├── page.tsx                    # Dashboard, hydratacja store'a
 │   └── api/
-│       └── ai-insight/
-│           └── route.ts     # POST /api/ai-insight — Claude Haiku call
+│       ├── state/route.ts          # GET — pełny snapshot (tracks + events + running km)
+│       ├── events/route.ts         # POST — nowy relaps (live lub wsteczny)
+│       ├── tracks/route.ts         # PATCH — zmiana lat uzależnienia
+│       ├── running/route.ts        # POST — dodanie km biegu
+│       └── ai-insight/route.ts     # POST — Claude Haiku, czyta bazę wiedzy + dane z DB
 ├── components/
-│   ├── Dashboard.tsx        # Dashboard z liczbami, strekami, przyciskami
-│   ├── Calendar.tsx         # Wizualizacja dni zielonych/czerwonych
-│   └── AICoach.tsx          # Chat/rezultat z AI coach'em
+│   ├── AddictionCard.tsx           # Licznik, streak, przyciski reset, toggle kalendarza
+│   ├── HistoryCalendar.tsx         # Miesięczny grid zielone/czerwone
+│   ├── PostRelapseModal.tsx        # Ekran po kliknięciu "Relapse"
+│   ├── RunningCard.tsx             # Bieganie jako "waluta naprawcza"
+│   └── AICoach.tsx                 # UI dla AI coach'a
 ├── lib/
-│   ├── store.ts             # Zustand store z nowym modelem danych
-│   └── utils.ts             # Utility functions
+│   ├── store.ts                    # Zustand — cienki klient nad API, nie localStorage
+│   ├── streaks.ts                  # Czyste funkcje: streak, rekord, status dnia
+│   ├── db.ts                       # Zapytania SQL do Vercel Postgres, schema setup
+│   └── utils.ts
 ├── docs/
-│   ├── knowledge-base/      # Baza wiedzy dla AI
+│   ├── knowledge-base/             # Statyczna baza wiedzy dla AI (research-backed)
 │   │   ├── thc.md
 │   │   ├── nicotine.md
 │   │   ├── nofap.md
 │   │   └── exercise.md
-│   └── ARCHITECTURE.md      # Ten plik
-├── public/
+│   └── ARCHITECTURE.md
+├── .env.example                    # POSTGRES_URL*, ANTHROPIC_API_KEY
 └── package.json
 ```
 
 ## Technologia
 
-- **Framework**: Next.js 14+ (App Router)
-- **Język**: TypeScript
-- **Stan**: Zustand + persist (localStorage)
+- **Framework**: Next.js 14 (App Router), TypeScript
+- **Baza danych**: Vercel Postgres (Neon) przez `@vercel/postgres` — bez ORM, surowe zapytania SQL w `lib/db.ts`
+- **Stan klienta**: Zustand jako cienka warstwa nad API (nie `persist`/localStorage)
 - **Styling**: Tailwind CSS
-- **AI**: Claude Haiku via Anthropic SDK (API key po stronie serwera)
-- **Deployment**: Vercel (serverless functions dla `/api/ai-insight`)
+- **AI**: Claude Haiku (`claude-haiku-4-5-20251001`) via `@anthropic-ai/sdk`, klucz tylko po stronie serwera
+- **Deployment**: Vercel — API routes jako serverless functions (`export const dynamic = 'force-dynamic'`, bo zależą od zmiennych środowiskowych bazy w runtime, nie da się ich prerenderować statycznie)
 
-## Oś czasu implementacji
+## Konfiguracja na Vercelu
 
-1. **Faza 1** — Nowy model danych + dashboard z liczbą i kalendarzem
-2. **Faza 2** — Reset teraz/wsteczny
-3. **Faza 3** — AI coach z Claude Haiku
-4. **Faza 4** — Streaki i statystyka
-5. **Faza 5** — Opcjonalnie: tracking snu, nastroju, integracja z bieganiem
+1. Storage → Create Database → Postgres (lub Neon integration) → połącz z projektem — zmienne `POSTGRES_URL*` wstrzykują się automatycznie
+2. Dodaj `ANTHROPIC_API_KEY` w zmiennych środowiskowych projektu
+3. Lokalnie: `vercel env pull .env.local` albo ręcznie skopiuj `.env.example` → `.env.local`
+
+## Co świadomie zostało poza zakresem (na razie)
+
+- Logowanie/konta — jeden wspólny zestaw danych, appka tylko dla jednego użytkownika na danym URL-u
+- Automatyczne wywołanie AI coach'a przy każdym wejściu — tylko on-demand (przycisk), żeby nie generować niepotrzebnych kosztów/requestów
+- Tracking snu/nastroju jako osobny system — notatka o triggerze przy relapsie to na razie jedyny surowiec pod wykrywanie wzorców
 
 ## Zastrzeżenie
 
-To nie jest porada medyczna. Aplikacja śledzić postęp i wspierać motywacyjnie, nie diagnozować ani leczyć.
+To nie jest porada medyczna. Aplikacja ma śledzić postęp i wspierać motywacyjnie, nie diagnozować ani leczyć.
