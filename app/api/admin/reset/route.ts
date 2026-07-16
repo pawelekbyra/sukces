@@ -42,7 +42,12 @@ export async function GET(request: Request) {
 
   const before = await inspect();
 
-  await sql`TRUNCATE relapse_events, running_events, chat_messages;`;
+  // DELETE rather than TRUNCATE: over Neon's serverless (HTTP) driver a multi-table
+  // TRUNCATE returns success but leaves the rows in place, so the reset silently did
+  // nothing. Plain DELETE statements clear the tables reliably.
+  await sql`DELETE FROM relapse_events;`;
+  await sql`DELETE FROM running_events;`;
+  await sql`DELETE FROM chat_messages;`;
   await sql`UPDATE tracks SET tracking_start = NOW();`;
 
   const after = await inspect();
