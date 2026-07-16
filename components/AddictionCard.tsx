@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { differenceInHours } from "date-fns";
 import { useSuwerenStore, type AddictionType } from "@/lib/store";
-import { getCurrentStreak, getLongestStreak } from "@/lib/streaks";
+import { getCurrentStreak, getLongestStreak, getLastRelapse } from "@/lib/streaks";
 import { cn, toLocalDateTimeInputValue } from "@/lib/utils";
 import { RefreshCcw, CalendarClock, Trophy } from "lucide-react";
 import { HistoryCalendar } from "./HistoryCalendar";
@@ -44,9 +44,15 @@ export function AddictionCard({ type }: AddictionCardProps) {
     if (!backdateValue) return null;
     const picked = new Date(backdateValue);
     if (Number.isNaN(picked.getTime())) return null;
+    if (picked > now) return { kind: "future" as const };
+
+    const lastRelapse = getLastRelapse(events, type);
+    if (lastRelapse && picked <= new Date(lastRelapse.timestamp)) {
+      return { kind: "no-op" as const, lastRelapse: new Date(lastRelapse.timestamp) };
+    }
+
     const totalHours = differenceInHours(now, picked);
-    if (totalHours < 0) return null;
-    return { days: Math.floor(totalHours / 24), hours: totalHours % 24 };
+    return { kind: "ok" as const, days: Math.floor(totalHours / 24), hours: totalHours % 24 };
   })();
 
   return (
@@ -103,11 +109,19 @@ export function AddictionCard({ type }: AddictionCardProps) {
             max={toLocalDateTimeInputValue(now)}
             className="bg-black border border-zinc-700 text-zinc-100 font-mono text-xs p-2 outline-none focus:border-emerald-500/50"
           />
-          {backdateValue && (
+          {backdatePreview?.kind === "future" && (
+            <span className="text-[10px] font-mono uppercase text-red-400">
+              Data musi być z przeszłości
+            </span>
+          )}
+          {backdatePreview?.kind === "no-op" && (
+            <span className="text-[10px] font-mono uppercase text-red-400">
+              Masz już zapisany nowszy relaps ({backdatePreview.lastRelapse.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}) — ta data go nie zastąpi, licznik się nie zmieni
+            </span>
+          )}
+          {backdatePreview?.kind === "ok" && (
             <span className="text-[10px] font-mono uppercase text-zinc-500">
-              {backdatePreview
-                ? <>Nowy licznik: <span className="text-emerald-400">{backdatePreview.days} dni {backdatePreview.hours} godz.</span></>
-                : <span className="text-red-400">Data musi być z przeszłości</span>}
+              Nowy licznik: <span className="text-emerald-400">{backdatePreview.days} dni {backdatePreview.hours} godz.</span>
             </span>
           )}
           <button
