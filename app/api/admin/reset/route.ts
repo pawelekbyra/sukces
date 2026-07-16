@@ -6,16 +6,52 @@ import { ensureSchema } from '@/lib/db';
 
 const RESET_TOKEN = 'c5f9625025677a470f6a2438d2d14871';
 
+/** Which database + connection this serverless function is actually talking to, plus row counts. */
+async function inspect() {
+  const { rows: ident } = await sql`
+    SELECT current_database() AS db,
+           current_user AS usr,
+           inet_server_addr()::text AS host,
+           current_setting('server_version') AS version;
+  `;
+  const { rows: counts } = await sql`
+    SELECT
+      (SELECT count(*) FROM relapse_events)::int AS relapses,
+      (SELECT count(*) FROM running_events)::int AS runs,
+      (SELECT count(*) FROM chat_messages)::int AS chat,
+      (SELECT count(*) FROM tracks)::int AS tracks;
+  `;
+  return { connection: ident[0], counts: counts[0] };
+}
+
 export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get('token');
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token');
   if (token !== RESET_TOKEN) {
     return NextResponse.json({ error: 'Nieprawidłowy token' }, { status: 403 });
   }
 
   await ensureSchema();
 
+  // Non-destructive probe: reports which database this function is bound to and what
+  // it currently holds, without touching any data. Used to diagnose whether the reset
+  // path and the app's read path share a database.
+  if (url.searchParams.get('dry') === '1') {
+    return NextResponse.json({ ok: true, dryRun: true, ...(await inspect()) });
+  }
+
+  const before = await inspect();
+
   await sql`TRUNCATE relapse_events, running_events, chat_messages;`;
   await sql`UPDATE tracks SET tracking_start = NOW();`;
 
-  return NextResponse.json({ ok: true, message: 'Baza zresetowana — wszystkie relapsy, biegi i czat wyczyszczone, liczniki startują od teraz.' });
+  const after = await inspect();
+
+  return NextResponse.json({
+    ok: true,
+    message: 'Baza zresetowana — wszystkie relapsy, biegi i czat wyczyszczone, liczniki startują od teraz.',
+    connection: before.connection,
+    before: before.counts,
+    after: after.counts,
+  });
 }
