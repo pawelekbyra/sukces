@@ -112,6 +112,11 @@ export async function insertEvent(event: RelapseEvent): Promise<void> {
   `;
 }
 
+export async function updateEventTimestamp(id: string, timestamp: string): Promise<void> {
+  await ensureSchema();
+  await sql`UPDATE relapse_events SET timestamp = ${timestamp} WHERE id = ${id};`;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
