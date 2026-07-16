@@ -7,11 +7,13 @@ import { RunningCard } from "@/components/RunningCard";
 import { AICoach } from "@/components/AICoach";
 import { Chat } from "@/components/Chat";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { Summary } from "@/components/Summary";
 import { cn } from "@/lib/utils";
 
-type Tab = AddictionType | "running" | "coach";
+type Tab = "summary" | AddictionType | "running" | "coach";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "summary", label: "Podsumowanie" },
   { id: "nicotine", label: "Papierosy" },
   { id: "thc", label: "Trawa" },
   { id: "nofap", label: "Walenie" },
@@ -24,7 +26,7 @@ export default function Home() {
   const error = useSuwerenStore((s) => s.error);
   const tracks = useSuwerenStore((s) => s.tracks);
   const hydrate = useSuwerenStore((s) => s.hydrate);
-  const [tab, setTab] = useState<Tab>("nicotine");
+  const [tab, setTab] = useState<Tab>("summary");
 
   useEffect(() => {
     hydrate();
@@ -69,6 +71,7 @@ export default function Home() {
 
         {hydrated && tracks && (
           <div className="max-w-2xl mx-auto w-full px-6 mt-6">
+            {tab === "summary" && <Summary onSelect={setTab} />}
             {tab === "nicotine" && <AddictionCard type="nicotine" />}
             {tab === "thc" && <AddictionCard type="thc" />}
             {tab === "nofap" && <AddictionCard type="nofap" />}
