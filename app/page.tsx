@@ -7,16 +7,19 @@ import { RunningCard } from "@/components/RunningCard";
 import { AICoach } from "@/components/AICoach";
 import { Chat } from "@/components/Chat";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { Summary } from "@/components/Summary";
 import { cn } from "@/lib/utils";
+import { LayoutGrid, Cigarette, Leaf, Hand, Footprints, Bot } from "lucide-react";
 
-type Tab = AddictionType | "running" | "coach";
+type Tab = "summary" | AddictionType | "running" | "coach";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "nicotine", label: "Papierosy" },
-  { id: "thc", label: "Trawa" },
-  { id: "nofap", label: "Walenie" },
-  { id: "running", label: "Bieganie" },
-  { id: "coach", label: "Trener" },
+const TABS: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
+  { id: "summary", label: "Podsumowanie", icon: LayoutGrid },
+  { id: "nicotine", label: "Papierosy", icon: Cigarette },
+  { id: "thc", label: "Trawa", icon: Leaf },
+  { id: "nofap", label: "Walenie", icon: Hand },
+  { id: "running", label: "Bieganie", icon: Footprints },
+  { id: "coach", label: "Trener", icon: Bot },
 ];
 
 export default function Home() {
@@ -24,7 +27,7 @@ export default function Home() {
   const error = useSuwerenStore((s) => s.error);
   const tracks = useSuwerenStore((s) => s.tracks);
   const hydrate = useSuwerenStore((s) => s.hydrate);
-  const [tab, setTab] = useState<Tab>("nicotine");
+  const [tab, setTab] = useState<Tab>("summary");
 
   useEffect(() => {
     hydrate();
@@ -45,12 +48,13 @@ export default function Home() {
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "px-4 py-2 whitespace-nowrap font-mono text-xs uppercase tracking-wider transition-colors",
+                  "flex items-center gap-1.5 px-4 py-2 whitespace-nowrap font-mono text-xs uppercase tracking-wider transition-colors",
                   tab === t.id
                     ? "bg-emerald-600 text-black"
                     : "text-zinc-500 hover:text-zinc-200 border border-zinc-800"
                 )}
               >
+                <t.icon className="w-3.5 h-3.5" />
                 {t.label}
               </button>
             ))}
@@ -69,6 +73,7 @@ export default function Home() {
 
         {hydrated && tracks && (
           <div className="max-w-2xl mx-auto w-full px-6 mt-6">
+            {tab === "summary" && <Summary onSelect={setTab} />}
             {tab === "nicotine" && <AddictionCard type="nicotine" />}
             {tab === "thc" && <AddictionCard type="thc" />}
             {tab === "nofap" && <AddictionCard type="nofap" />}
