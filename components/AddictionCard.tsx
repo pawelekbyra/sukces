@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { differenceInHours } from "date-fns";
 import { useSuwerenStore, type AddictionType } from "@/lib/store";
 import { getCurrentStreak, getLongestStreak } from "@/lib/streaks";
 import { cn, toLocalDateTimeInputValue } from "@/lib/utils";
@@ -38,6 +39,15 @@ export function AddictionCard({ type }: AddictionCardProps) {
     setShowBackdate(false);
     setBackdateValue("");
   };
+
+  const backdatePreview = (() => {
+    if (!backdateValue) return null;
+    const picked = new Date(backdateValue);
+    if (Number.isNaN(picked.getTime())) return null;
+    const totalHours = differenceInHours(now, picked);
+    if (totalHours < 0) return null;
+    return { days: Math.floor(totalHours / 24), hours: totalHours % 24 };
+  })();
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-none flex flex-col gap-4">
@@ -93,6 +103,13 @@ export function AddictionCard({ type }: AddictionCardProps) {
             max={toLocalDateTimeInputValue(now)}
             className="bg-black border border-zinc-700 text-zinc-100 font-mono text-xs p-2 outline-none focus:border-emerald-500/50"
           />
+          {backdateValue && (
+            <span className="text-[10px] font-mono uppercase text-zinc-500">
+              {backdatePreview
+                ? <>Nowy licznik: <span className="text-emerald-400">{backdatePreview.days} dni {backdatePreview.hours} godz.</span></>
+                : <span className="text-red-400">Data musi być z przeszłości</span>}
+            </span>
+          )}
           <button
             onClick={handleBackdate}
             className="py-1 border border-emerald-500/50 bg-emerald-500/10 text-emerald-500 font-mono text-[10px] uppercase"
