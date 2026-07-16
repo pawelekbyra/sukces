@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 import { useSuwerenStore, type AddictionType } from "@/lib/store";
 import { getCurrentStreak } from "@/lib/streaks";
 import { cn } from "@/lib/utils";
+import { Cigarette, Leaf, Hand, ChevronRight, type LucideIcon } from "lucide-react";
 
 const ORDER: AddictionType[] = ["nicotine", "thc", "nofap"];
+
+const ICONS: Record<AddictionType, LucideIcon> = {
+  nicotine: Cigarette,
+  thc: Leaf,
+  nofap: Hand,
+};
 
 interface SummaryProps {
   onSelect: (type: AddictionType) => void;
@@ -27,6 +34,7 @@ export function Summary({ onSelect }: SummaryProps) {
         const track = tracks[type];
         const streak = getCurrentStreak(events, type, track.trackingStart, now);
         const clean = streak.days > 0;
+        const Icon = ICONS[type];
 
         return (
           <button
@@ -34,17 +42,21 @@ export function Summary({ onSelect }: SummaryProps) {
             onClick={() => onSelect(type)}
             className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800 hover:border-zinc-600 transition-colors p-6 text-left"
           >
-            <span className="text-zinc-400 font-mono text-sm uppercase tracking-wider">
+            <span className="flex items-center gap-2.5 text-zinc-400 font-mono text-sm uppercase tracking-wider">
+              <Icon className="w-4 h-4 text-zinc-600" />
               {track.name}
             </span>
-            <span
-              className={cn(
-                "text-4xl font-black tabular-nums",
-                clean ? "text-emerald-400" : "text-red-500"
-              )}
-            >
-              {clean ? streak.days : 0}
-              <span className="text-base font-mono text-zinc-500 ml-1">dni</span>
+            <span className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "text-4xl font-black tabular-nums",
+                  clean ? "text-emerald-400" : "text-red-500"
+                )}
+              >
+                {clean ? streak.days : 0}
+                <span className="text-base font-mono text-zinc-500 ml-1">dni</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-zinc-700" />
             </span>
           </button>
         );
