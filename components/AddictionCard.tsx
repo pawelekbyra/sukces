@@ -17,6 +17,7 @@ export function AddictionCard({ type }: AddictionCardProps) {
   const track = useSuwerenStore((s) => s.tracks![type]);
   const events = useSuwerenStore((s) => s.events);
   const logRelapse = useSuwerenStore((s) => s.logRelapse);
+  const editRelapseTimestamp = useSuwerenStore((s) => s.editRelapseTimestamp);
 
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBackdate, setShowBackdate] = useState(false);
@@ -32,12 +33,34 @@ export function AddictionCard({ type }: AddictionCardProps) {
   const streak = getCurrentStreak(events, type, track.trackingStart, now);
   const longest = getLongestStreak(events, type, track.trackingStart, now);
   const isPersonalBest = streak.days > 0 && streak.days >= longest;
+  const lastRelapse = getLastRelapse(events, type);
+
+  // Toggle the backdate form; when opening, pre-fill it with the current last-relapse
+  // time so the date is always visible and editable.
+  const toggleBackdate = () => {
+    setShowBackdate((open) => {
+      if (!open) {
+        setBackdateValue(
+          lastRelapse ? toLocalDateTimeInputValue(new Date(lastRelapse.timestamp)) : ""
+        );
+      }
+      return !open;
+    });
+  };
 
   const handleBackdate = async () => {
     if (!backdateValue) return;
-    await logRelapse(type, new Date(backdateValue).toISOString());
+    const picked = new Date(backdateValue);
+    if (Number.isNaN(picked.getTime()) || picked > now) return;
+    const iso = picked.toISOString();
+    // Editing the reference point (the most recent relapse) is what actually moves the
+    // counter. If there is no relapse yet, create the first one.
+    if (lastRelapse) {
+      await editRelapseTimestamp(lastRelapse.id, iso);
+    } else {
+      await logRelapse(type, iso);
+    }
     setShowBackdate(false);
-    setBackdateValue("");
   };
 
   const backdatePreview = (() => {
@@ -45,11 +68,6 @@ export function AddictionCard({ type }: AddictionCardProps) {
     const picked = new Date(backdateValue);
     if (Number.isNaN(picked.getTime())) return null;
     if (picked > now) return { kind: "future" as const };
-
-    const lastRelapse = getLastRelapse(events, type);
-    if (lastRelapse && picked <= new Date(lastRelapse.timestamp)) {
-      return { kind: "no-op" as const, lastRelapse: new Date(lastRelapse.timestamp) };
-    }
 
     const totalHours = differenceInHours(now, picked);
     return { kind: "ok" as const, days: Math.floor(totalHours / 24), hours: totalHours % 24 };
@@ -90,17 +108,19 @@ export function AddictionCard({ type }: AddictionCardProps) {
           <RefreshCcw className="w-4 h-4" /> Relapse
         </button>
         <button
-          onClick={() => setShowBackdate((v) => !v)}
+          onClick={toggleBackdate}
           className="py-2 border border-zinc-700 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all flex items-center justify-center gap-2 font-mono text-xs uppercase text-zinc-400 hover:text-emerald-400"
         >
-          <CalendarClock className="w-4 h-4" /> Zgłoś wsteczny
+          <CalendarClock className="w-4 h-4" /> Popraw datę
         </button>
       </div>
 
       {showBackdate && (
         <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
           <label className="text-[10px] text-zinc-500 font-mono uppercase">
-            Kiedy naprawdę doszło do relapsu?
+            {lastRelapse
+              ? "Kiedy naprawdę doszło do ostatniego relapsu?"
+              : "Kiedy doszło do ostatniego relapsu?"}
           </label>
           <input
             type="datetime-local"
@@ -114,21 +134,17 @@ export function AddictionCard({ type }: AddictionCardProps) {
               Data musi być z przeszłości
             </span>
           )}
-          {backdatePreview?.kind === "no-op" && (
-            <span className="text-[10px] font-mono uppercase text-red-400">
-              Masz już zapisany nowszy relaps ({backdatePreview.lastRelapse.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}) — ta data go nie zastąpi, licznik się nie zmieni
-            </span>
-          )}
           {backdatePreview?.kind === "ok" && (
             <span className="text-[10px] font-mono uppercase text-zinc-500">
-              Nowy licznik: <span className="text-emerald-400">{backdatePreview.days} dni {backdatePreview.hours} godz.</span>
+              Licznik pokaże: <span className="text-emerald-400">{backdatePreview.days} dni {backdatePreview.hours} godz.</span>
             </span>
           )}
           <button
             onClick={handleBackdate}
-            className="py-1 border border-emerald-500/50 bg-emerald-500/10 text-emerald-500 font-mono text-[10px] uppercase"
+            disabled={backdatePreview?.kind !== "ok"}
+            className="py-1 border border-emerald-500/50 bg-emerald-500/10 text-emerald-500 font-mono text-[10px] uppercase disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Zapisz (nieodwracalne)
+            Zapisz datę
           </button>
         </div>
       )}

@@ -33,6 +33,7 @@ interface SuwerenState {
 
   hydrate: () => Promise<void>;
   logRelapse: (type: AddictionType, timestamp?: string, note?: string) => Promise<void>;
+  editRelapseTimestamp: (id: string, timestamp: string) => Promise<void>;
   setYearsOfAddiction: (type: AddictionType, years: number) => Promise<void>;
   logRunningKm: (km: number, timestamp?: string) => Promise<void>;
 }
@@ -70,6 +71,18 @@ export const useSuwerenStore = create<SuwerenState>()((set, get) => ({
     if (!res.ok) throw new Error('Nie udało się zapisać relapsu');
     const event: RelapseEvent = await res.json();
     set((state) => ({ events: [...state.events, event] }));
+  },
+
+  editRelapseTimestamp: async (id, timestamp) => {
+    const res = await fetch('/api/events', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, timestamp }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zaktualizować daty relapsu');
+    set((state) => ({
+      events: state.events.map((e) => (e.id === id ? { ...e, timestamp } : e)),
+    }));
   },
 
   setYearsOfAddiction: async (type, years) => {
