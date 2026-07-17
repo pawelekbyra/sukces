@@ -21,7 +21,16 @@ async function inspect() {
       (SELECT count(*) FROM chat_messages)::int AS chat,
       (SELECT count(*) FROM tracks)::int AS tracks;
   `;
-  return { connection: ident[0], counts: counts[0] };
+  const { rows: trackRows } = await sql`
+    SELECT type, tracking_start FROM tracks ORDER BY type;
+  `;
+  const { rows: nowRows } = await sql`SELECT now() AS server_now;`;
+  return {
+    connection: ident[0],
+    counts: counts[0],
+    serverNow: nowRows[0].server_now,
+    trackingStart: Object.fromEntries(trackRows.map((r) => [r.type, r.tracking_start])),
+  };
 }
 
 export async function GET(request: Request) {
